@@ -1,0 +1,135 @@
+{
+  "config": {
+    "debug": true,
+    "reset_db": true,
+    "index_all_properties": true,
+    "node_write_batch_size": 5000,
+    "edge_write_batch_size": 1000,
+    "node_write_parallelism": 10,
+    "edge_write_parallelism": 1
+  },
+  "sources": [
+    {
+      "type": "bigquery",
+      "name": "transactions",
+      "query": "SELECT transactions.hash as transaction_hash, transactions.block_hash, transactions.block_number, transactions.block_timestamp, transactions.block_timestamp_month, inputs.index, inputs.spent_transaction_hash, inputs.spent_output_index, inputs.script_asm, inputs.script_hex, inputs.sequence, inputs.required_signatures, inputs.type, inputs.addresses, inputs.value, outputs.index, outputs.script_asm, outputs.script_hex, outputs.required_signatures, outputs.type, outputs.addresses, outputs.value FROM `bigquery-public-data.crypto_bitcoin.transactions` as transactions, transactions.inputs as inputs, transactions.outputs as outputs WHERE block_timestamp_month BETWEEN '2014-01-01' AND '2015-01-01'"
+    }
+  ],
+  "targets": [
+    {
+      "node": {
+        "source": "transactions",
+        "name": "tx",
+        "active": true,
+        "mode": "merge",
+        "transform": {
+          "group": true
+        },
+        "automap": false,
+        "mappings": {
+          "labels": [
+            "\"transaction\""
+          ],
+          "keys": [
+            {"transaction_hash": "Transaction id"}
+          ],
+          "properties": {
+            "unique": [],
+            "indexed": [
+              {"transactions.block_timestamp": "Transaction timestamp"}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "node": {
+        "source": "transactions",
+        "name": "Addresses",
+        "active": true,
+        "mode": "merge",
+        "transform": {
+          "aggregations": [
+            {
+              "expr": "SUM(inputs.value)",
+              "field": "total_input_amount"
+            },
+            {
+              "expr": "SUM(outputs.value)",
+              "field": "total_output_amount"
+            }
+          ],
+          "group": true,
+          "order_by": "outputs.index ASC",
+          "limit": -1
+        },
+        "automap": false,
+        "mappings": {
+          "labels": [
+            "\"Addresses\""
+          ],
+          "keys": [
+            "inputs.addresses"
+          ],
+          "properties": {
+            "indexed": [
+              "contact_name",
+              "company_name"
+            ],
+            "strings": [{"inputs.addresses": "Input Addresses"}],
+            "doubles":
+              {"inputs.value": "Total input amount"}
+            ,
+            "longs": [
+              {"outputs.value": "Total output amount"}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "edge": {
+        "source": "transactions",
+        "name": "Ouputs Addresses",
+        "mode": "merge",
+        "active": true,
+        "transform": {
+          "aggregations": [
+            {
+              "expr": "SUM(inputs.value)",
+              "field": "total_input_amount"
+            },
+            {
+              "expr": "SUM(outputs.value)",
+              "field": "total_output_amount"
+            }
+          ],
+          "group": true,
+          "order_by": "outputs.index ASC",
+          "limit": -1
+        },
+        "automap": false,
+        "mappings": {
+          "labels": [
+            "\"Addresses\""
+          ],
+          "keys": [
+            "outputs.addresses"
+          ],
+          "properties": {
+            "indexed": [
+              "outputs.addresses"
+            ],
+            "strings": [{"outputs.addresses": "Output Addresses"}],
+            "doubles":
+              {"inputs.value": "Total input amount"}
+            ,
+            "longs": [
+              {"outputs.value": "Total output amount"}
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
